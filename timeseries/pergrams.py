@@ -155,7 +155,7 @@ from ivs.timeseries import (pyscargle, pyscargle_single, pyfasper,
 logger = logging.getLogger("TS.PERGRAMS")
 
 
-#{ Periodograms
+# { Periodograms
 
 
 @defaults_pergram
@@ -210,35 +210,45 @@ def scargle(times, signal, f0=None, fn=None, df=None, norm='amplitude',
     @return: frequencies, amplitude spectrum
     @rtype: array,array
     """
-    if single: pyscargle_ = pyscargle_single
+    if single:
+        # The 'single' here refers to single precision so 32 bit.
+        # The other one is double, or 64 bit, precision.
+        # There is no perceivable time difference, so better not use this one.
+        pyscargle_ = pyscargle_single
     else:
         pyscargle_ = pyscargle
-    #-- initialize variables for use in Fortran routine
-    sigma=0.;xgem=0.;xvar=0.;n=len(times)
+    # initialize variables for use in Fortran routine
+    sigma = 0.
+    xgem = 0.
+    xvar = 0.
+    n = len(times)
     T = times.ptp()
-    nf=int((fn-f0)/df+0.001)+1
-    f1=np.zeros(nf,'d');s1=np.zeros(nf,'d')
-    ss=np.zeros(nf,'d');sc=np.zeros(nf,'d');ss2=np.zeros(nf,'d');sc2=np.zeros(nf,'d')
-
-    #-- run the Fortran routine
+    nf = int((fn - f0) / df + 0.001) + 1
+    f1 = np.zeros(nf, dtype='d')  # 'd' is a double precision float (=='f8')
+    s1 = np.zeros(nf, dtype='d')
+    ss = np.zeros(nf, dtype='d')
+    sc = np.zeros(nf, dtype='d')
+    ss2 = np.zeros(nf, dtype='d')
+    sc2 = np.zeros(nf, dtype='d')
+    # run the Fortran routine
     if weights is None:
-        f1,s1=pyscargle_.scar2(signal,times,f0,df,f1,s1,ss,sc,ss2,sc2)
+        f1, s1 = pyscargle_.scar2(signal, times, f0, df, f1, s1, ss, sc, ss2, sc2)
     else:
-        w=np.array(weights,'float')
+        w = np.array(weights, dtype='float')
         logger.debug('Weighed scargle')
-        f1,s1=pyscargle_.scar3(signal,times,f0,df,f1,s1,ss,sc,ss2,sc2,w)
+        f1, s1 = pyscargle_.scar3(signal, times, f0, df, f1, s1, ss, sc, ss2, sc2, w)
 
-    #-- search for peaks/frequencies/amplitudes
-    if not s1[0]: s1[0]=0. # it is possible that the first amplitude is a none-variable
-    fact  = np.sqrt(4./n)
-    if norm =='distribution': # statistical distribution
+    # search for peaks/frequencies/amplitudes
+    if not s1[0]:
+        s1[0] = 0.  # it is possible that the first amplitude is a none-variable
+    fact = np.sqrt(4./n)
+    if norm == 'distribution':  # statistical distribution
         s1 /= np.var(signal)
-    elif norm == "amplitude": # amplitude spectrum
+    elif norm == "amplitude":  # amplitude spectrum
         s1 = fact * np.sqrt(s1)
-    elif norm == "density": # power density
+    elif norm == "density":  # power density
         s1 = fact**2 * s1 * T
     return f1, s1
-
 
 
 @defaults_pergram
@@ -293,13 +303,6 @@ def fasper(times,signal, f0=None, fn=None, df=None, single=True, norm='amplitude
         keep = f0<wk1
         wk1,wk2 = wk1[keep],wk2[keep]
     return wk1,wk2
-
-
-
-
-
-
-
 
 
 @defaults_pergram
@@ -381,9 +384,6 @@ def gls(times,signal, f0=None, fn=None, df=None, errors=None, wexp=2):
     return f1,s1
 
 
-
-
-
 @defaults_pergram
 @parallel_pergram
 @make_parallel
@@ -447,14 +447,7 @@ def clean(times,signal, f0=None, fn=None, df=None, freqbins=None, niter=10.,
     f,wpow,wpha = pyclean.main_clean(times,signal,fn,nf,gain,niter,nbins,\
                     startfreqs,endfreqs)
 
-    return f,wpow
-
-
-
-
-
-
-
+    return f, wpow
 
 
 @defaults_pergram
@@ -501,6 +494,7 @@ def schwarzenberg_czerny(times, signal, f0=None, fn=None, df=None, nh=2, mode=1)
     # th *= 0.5 seemed necessary to fit the F-distribution
 
     return frequencies,th
+
 
 def DFTpower(time, signal, f0=None, fn=None, df=None, full_output=False):
 
@@ -569,7 +563,6 @@ def DFTpower2(time, signal, freqs):
 
     powerSpectrum = powerSpectrum * 4.0 / len(time)**2
     return(powerSpectrum)
-
 
 
 def DFTscargle(times, signal,f0,fn,df):
@@ -683,12 +676,6 @@ def FFTpower(signal, timestep):
     return (freq, power)
 
 
-
-
-
-
-
-
 def FFTpowerdensity(signal, timestep):
 
     """
@@ -727,13 +714,6 @@ def FFTpowerdensity(signal, timestep):
     # That's it!
 
     return (freq, powerdensity)
-
-
-
-
-
-
-
 
 
 def weightedpower(time, signal, weight, freq):
@@ -779,19 +759,10 @@ def weightedpower(time, signal, weight, freq):
     return(result)
 
 
-
-
-
-
-
-
-
-
 @defaults_pergram
 @parallel_pergram
 @make_parallel
-def pdm(times, signal,f0=None,fn=None,df=None,Nbin=5,Ncover=2,
-         D=0,forbit=None,asini=None,e=None,omega=None,nmax=10):
+def pdm(times, signal,f0=None,fn=None,df=None,Nbin=5,Ncover=2,D=0,forbit=None,asini=None,e=None,omega=None,nmax=10):
     """
     Phase Dispersion Minimization of Jurkevich-Stellingwerf (1978)
 
@@ -826,27 +797,27 @@ def pdm(times, signal,f0=None,fn=None,df=None,Nbin=5,Ncover=2,
     @rtype: array,array
     """
     T = times.ptp()
-    n  = len(times)
+    n = len(times)
 
-    #-- initialize variables
+    # -- initialize variables
     xvar     = signal.std()**2.
     xx = (n-1) * xvar
     nf = int((fn-f0) / df + 0.001) + 1
     f1 = np.zeros(nf,'d')
     s1 = np.zeros(nf,'d')
 
-    #-- use Fortran subroutine
-    #-- Normal PDM
+    # -- use Fortran subroutine
+    # -- Normal PDM
     if D is None and asini is None:
         f1, s1 = pyscargle.justel(signal,times,f0,df,Nbin,Ncover,xvar,xx,f1,s1,n,nf)
-    #-- PDM with linear frequency shift
+    # -- PDM with linear frequency shift
     elif asini is None:
         f1, s1 = pyscargle.justel2(signal,times,f0,df,Nbin,Ncover,xvar,xx,D,f1,s1,n,nf)
-    #-- PDM with circular binary orbit
+    # -- PDM with circular binary orbit
     elif asini is not None and (e is None or e==0):
         f1, s1 = pyscargle.justel3(signal,times,f0,df,Nbin,Ncover,xvar,xx,asini,
                   forbit,f1,s1,n,nf)
-    #-- PDM with eccentric binary orbit
+    # -- PDM with eccentric binary orbit
     elif e>0:
         forbit = 2*pi*forbit
         ans,bns = np.array([[__ane__(n,e),__bne__(n,e)] for n in range(1,nmax+1)]).T
@@ -856,23 +827,10 @@ def pdm(times, signal,f0=None,fn=None,df=None,Nbin=5,Ncover=2,
         f1, s1 = pyscargle.justel4(signal,times,f0,df,Nbin,Ncover,xvar,xx,asini,
         forbit,e,omega,ksins,thns,tau,f1,s1,n,nf,nmax)
 
-
-    #-- it is possible that the first computed value is a none-variable
+    # -- it is possible that the first computed value is a none-variable
     if not s1[0]: s1[0] = 1.
 
     return f1, s1
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 @defaults_pergram
@@ -939,9 +897,6 @@ def box(times, signal, f0=None, fn=None, df=None, Nbin=10, qmi=0.005, qma=0.75 )
     return frequencies,power
 
 
-
-
-
 @defaults_pergram
 @parallel_pergram
 @make_parallel
@@ -991,9 +946,6 @@ def kepler(times,signal, f0=None, fn=None, df=None, e0=0., en=0.91, de=0.1,
     pyKEP.kepler(times+0,signal+0,errors,f0,fn,df,wexp,e0,en,de,\
           x00,x0n,f1,s1,p1,l1,s2,k2)
     return f1,s2
-
-
-
 
 
 def Zwavelet(time, signal, freq, position, sigma=10.0):
@@ -1090,9 +1042,11 @@ def Zwavelet(time, signal, freq, position, sigma=10.0):
 
     return Z
 
-#}
+# }
 
-#{ Pure Python versions
+
+# { Pure Python versions
+
 
 @defaults_pergram
 @parallel_pergram
@@ -1184,8 +1138,6 @@ def pdm_py(time, signal, f0=None, fn=None, df=None, Nbin=10, Ncover=5, D=0.):
     return freq,theta
 
 
-
-
 def fasper_py(x,y,ofac,hifac, MACC=4):
     """ function fasper
         Given abscissas x (which need not be equally spaced) and ordinates
@@ -1227,14 +1179,14 @@ def fasper_py(x,y,ofac,hifac, MACC=4):
         02/23/2009, v1.0, MF
         Translation of IDL code (orig. Numerical recipies)
     """
-    #Check dimensions of input arrays
+    # Check dimensions of input arrays
     n = int(len(x))
     if n != len(y):
         print('Incompatible arrays.')
         return
 
-    nout  = 0.5*ofac*hifac*n
-    nfreqt = int(ofac*hifac*n*MACC)   #Size the FFT as next power
+    nout = 0.5*ofac*hifac*n
+    nfreqt = int(ofac*hifac*n*MACC)   # Size the FFT as next power
     nfreq = 64             # of 2 above nfreqt.
 
     while nfreq < nfreqt:
@@ -1242,16 +1194,16 @@ def fasper_py(x,y,ofac,hifac, MACC=4):
 
     ndim = int(2*nfreq)
 
-    #Compute the mean, variance
+    # Compute the mean, variance
     ave = y.mean()
-    ##sample variance because the divisor is N-1
+    # sample variance because the divisor is N-1
     var = ((y-y.mean())**2).sum()/(len(y)-1)
     # and range of the data.
     xmin = x.min()
     xmax = x.max()
     xdif = xmax-xmin
 
-    #extirpolate the data into the workspaces
+    # extirpolate the data into the workspaces
     wk1 = np.zeros(ndim, dtype='complex')
     wk2 = np.zeros(ndim, dtype='complex')
 
@@ -1264,7 +1216,7 @@ def fasper_py(x,y,ofac,hifac, MACC=4):
         __spread__(y[j]-ave,wk1,ndim,ck[j],MACC)
         __spread__(1.0,wk2,ndim,ckk[j],MACC)
 
-    #Take the Fast Fourier Transforms
+    # Take the Fast Fourier Transforms
     wk1 = np.fft.ifft( wk1 )*len(wk1)
     wk2 = np.fft.ifft( wk2 )*len(wk1)
 
@@ -1275,16 +1227,16 @@ def fasper_py(x,y,ofac,hifac, MACC=4):
     rwk2 = wk2.real
     iwk2 = wk2.imag
 
-    df  = 1.0/(xdif*ofac)
+    df = 1.0/(xdif*ofac)
 
-    #Compute the Lomb value for each frequency
+    # Compute the Lomb value for each frequency
     hypo2 = 2.0 * abs( wk2 )
     hc2wt = rwk2/hypo2
     hs2wt = iwk2/hypo2
 
-    cwt  = np.sqrt(0.5+hc2wt)
-    swt  = np.sign(hs2wt)*(np.sqrt(0.5-hc2wt))
-    den  = 0.5*n+hc2wt*rwk2+hs2wt*iwk2
+    cwt = np.sqrt(0.5+hc2wt)
+    swt = np.sign(hs2wt)*(np.sqrt(0.5-hc2wt))
+    den = 0.5*n+hc2wt*rwk2+hs2wt*iwk2
     cterm = (cwt*rwk1+swt*iwk1)**2./den
     sterm = (cwt*iwk1-swt*rwk1)**2./(n-den)
 
@@ -1294,14 +1246,14 @@ def fasper_py(x,y,ofac,hifac, MACC=4):
     jmax = wk2.argmax()
 
 
-    #Significance estimation
-    #expy = exp(-wk2)
-    #effm = 2.0*(nout)/ofac
-    #sig = effm*expy
-    #ind = (sig > 0.01).nonzero()
-    #sig[ind] = 1.0-(1.0-expy[ind])**effm
+    # Significance estimation
+    # expy = exp(-wk2)
+    # effm = 2.0*(nout)/ofac
+    # sig = effm*expy
+    # ind = (sig > 0.01).nonzero()
+    # sig[ind] = 1.0-(1.0-expy[ind])**effm
 
-    #Estimate significance of largest peak value
+    # Estimate significance of largest peak value
     expy = np.exp(-pmax)
     effm = 2.0*(nout)/ofac
     prob = effm*expy
@@ -1310,38 +1262,29 @@ def fasper_py(x,y,ofac,hifac, MACC=4):
         prob = 1.0-(1.0-expy)**effm
 
     return wk1,wk2,nout,jmax,prob
-#}
+# }
 
-#{ Helper functions
+# { Helper functions
 
-def windowfunction(time, freq):
 
+def spectral_window(time, freq):
+    """Computes the modulus square of the window function of a set of
+    time points at the given frequencies. The time points do not need to be
+    equidistant. The normalisation is such that 1.0 is returned at frequency 0.
+
+    @param time: time points  [0..n_time-1]
+    @type time: numpy.ndarray
+    @param freq: frequency points. Units: inverse unit of 'time' [0..n_freq-1]
+    @type freq: numpy.ndarray
+    @return: |W(freq)|^2      [0..n_freq-1]
+    @rtype: numpy.ndarray
     """
-    Computes the modulus square of the window function of a set of
-    time points at the given frequencies. The time point need not be
-    equidistant. The normalisation is such that 1.0 is returned at
-    frequency 0.
-
-    @param time: time points  [0..Ntime-1]
-    @type time: ndarray
-    @param freq: frequency points. Units: inverse unit of 'time' [0..Nfreq-1]
-    @type freq: ndarray
-    @return: |W(freq)|^2      [0..Nfreq-1]
-    @rtype: array
-
-    """
-
-    Ntime = len(time)
-    Nfreq = len(freq)
-    winkernel = np.empty_like(freq)
-
-    for i in range(Nfreq):
-        winkernel[i] = np.sum(np.cos(2.0*pi*freq[i]*time))**2     \
-                     + np.sum(np.sin(2.0*pi*freq[i]*time))**2
-
+    n_time = len(time)
+    cos_term = np.sum(np.cos(2.0*np.pi*freq*time.reshape(n_time, 1)), axis=0)
+    sin_term = np.sum(np.sin(2.0*np.pi*freq*time.reshape(n_time, 1)), axis=0)
+    winkernel = cos_term**2 + sin_term**2
     # Normalise such that winkernel(nu = 0.0) = 1.0
-
-    return winkernel/Ntime**2
+    return winkernel/n_time**2
 
 
 def check_input(times,signal,**kwargs):
@@ -1440,8 +1383,10 @@ def __spread__(y, yy, n, x, m):
             nden=(nden/(j+1-ilo))*(j-ihi)
             yy[j] = yy[j] + y*fac/(nden*(x-j))
 
+
 def __ane__(n,e):
     return 2.*np.sqrt(1-e**2)/e/n*jn(n,n*e)
+
 
 def __bne__(n,e):
     return 1./n*(jn(n-1,n*e)-jn(n+1,n*e))
