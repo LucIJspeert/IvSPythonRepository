@@ -160,12 +160,13 @@ from ivs.aux import numpy_ext
 
 logger = logging.getLogger("TS.FREQANAL")
 
-#{ Convenience functions
 
-def find_frequency(times,signal,method='scargle',model='sine',full_output=False,
-            optimize=0,max_loops=20, scale_region=0.1, scale_df=0.20, model_kwargs=None,
-            correlation_correction=True,prewhiteningorder_snr=False,
-            prewhiteningorder_snr_window=1.,**kwargs):
+# { Convenience functions
+
+def find_frequency(times, signal, method='scargle', model='sine', full_output=False,
+                   optimize=0, max_loops=20, scale_region=0.1, scale_df=0.20, model_kwargs=None,
+                   correlation_correction=True, prewhiteningorder_snr=False,
+                   prewhiteningorder_snr_window=1., **kwargs):
     """
     Find one frequency, automatically going to maximum precision and return
     parameters & error estimates.
@@ -231,116 +232,118 @@ def find_frequency(times,signal,method='scargle',model='sine',full_output=False,
     """
     if model_kwargs is None:
         model_kwargs = dict()
-    #-- initial values
+    # -- initial values
     e_f = 0
     freq_diff = np.inf
     prev_freq = -np.inf
     counter = 0
-
+    
     f_max = np.inf
-    f_min = 0.#-np.inf
-
-    #-- calculate periodogram until frequency precision is
+    f_min = 0.  # -np.inf
+    
+    # -- calculate periodogram until frequency precision is
     #   under 1/10th of correlation corrected version of frequency error
-    method_kwargs = kwargs.copy() # don't modify the dictionary the user gave
-
-    while freq_diff>e_f/10.:
-        #-- possibly, we might want to use different periodograms for the first
+    method_kwargs = kwargs.copy()  # don't modify the dictionary the user gave
+    
+    while freq_diff > e_f / 10.:
+        # -- possibly, we might want to use different periodograms for the first
         #   calculation than for the zoom in, since some periodograms are faster
         #   than others but do not have the ability to 'zoom in' (e.g. the FFT)
-        if freq_diff==np.inf and not isinstance(method,str):
+        if freq_diff == np.inf and not isinstance(method, str):
             method_ = method[1]
             method = method[0]  # override method to be a string the next time
-        #-- calculate periodogram
-        freqs,ampls = getattr(pergrams,method)(times,signal,**method_kwargs)
-        f0,fn,df = freqs[0],freqs[-1],freqs[1]-freqs[0]
-        #-- now use the second method for the zoom-ins from now on
-        if freq_diff==np.inf and not isinstance(method,str):
+        # -- calculate periodogram
+        freqs, ampls = getattr(pergrams, method)(times, signal, **method_kwargs)
+        f0, fn, df = freqs[0], freqs[-1], freqs[1] - freqs[0]
+        # -- now use the second method for the zoom-ins from now on
+        if freq_diff == np.inf and not isinstance(method, str):
             method = method_
-        #-- extract the frequency: this part should be generalized, but for now,
+        # -- extract the frequency: this part should be generalized, but for now,
         #   it will do:
         if method in ['pdm']:
             frequency = freqs[np.argmin(ampls)]
-        #-- instead of going for the highest peak, let's get the most significant one
+        # -- instead of going for the highest peak, let's get the most significant one
         if prewhiteningorder_snr:
-            if counter == 0: #we calculate a noise spectrum with a convolution in a 1 d-1 window
-                windowlength = float(prewhiteningorder_snr_window)/(freqs[1]-freqs[0])
-                window = np.ones(int(windowlength))/float(windowlength)
-                ampls_ = np.concatenate((ampls[::-1],ampls,ampls[::-1])) #we mirror the amplitude spectrum on both ends so the convolution will be better near the edges
+            if counter == 0:  # we calculate a noise spectrum with a convolution in a 1 d-1 window
+                windowlength = float(prewhiteningorder_snr_window) / (freqs[1] - freqs[0])
+                window = np.ones(int(windowlength)) / float(windowlength)
+                ampls_ = np.concatenate((ampls[::-1], ampls, ampls[
+                                                             ::-1]))  # we mirror the amplitude spectrum on both ends so the convolution will be better near the edges
                 noises_ = np.convolve(ampls_, window, 'same')
-                noises = np.split(noises_,3)[1] #and we recut the resulted convolution to match the original frequency range
+                noises = np.split(noises_, 3)[
+                    1]  # and we recut the resulted convolution to match the original frequency range
                 freqs_old = np.copy(freqs)
                 noises_old = np.copy(noises)
             else:
-                noises = np.interp(freqs,freqs_old,noises_old) #we use the original noise spectrum in this narrower windows too, which should save some time, and avoid the problem of having a wider window for the SNR calculation than the width of the zoom-in window
-            frequency = freqs[np.argmax(ampls/noises)]
+                noises = np.interp(freqs, freqs_old,
+                                   noises_old)  # we use the original noise spectrum in this narrower windows too, which should save some time, and avoid the problem of having a wider window for the SNR calculation than the width of the zoom-in window
+            frequency = freqs[np.argmax(ampls / noises)]
         else:
             frequency = freqs[np.argmax(ampls)]
-        if full_output and counter==0:
-            freqs_,ampls_ = freqs,ampls
-        #-- estimate parameters and calculate a fit, errors and residuals
-        params = getattr(fit,model)(times,signal,frequency,**model_kwargs)
-        if hasattr(fit,'e_'+model):
-            errors = getattr(fit,'e_'+model)(times,signal,params,correlation_correction=correlation_correction)
+        if full_output and counter == 0:
+            freqs_, ampls_ = freqs, ampls
+        # -- estimate parameters and calculate a fit, errors and residuals
+        params = getattr(fit, model)(times, signal, frequency, **model_kwargs)
+        if hasattr(fit, 'e_' + model):
+            errors = getattr(fit, 'e_' + model)(times, signal, params, correlation_correction=correlation_correction)
             e_f = errors['e_freq'][-1]
-        #-- possibly there are not errors defined for this fitting functions
+        # -- possibly there are not errors defined for this fitting functions
         else:
             errors = None
-        #-- optimize inside loop if necessary and if we gained prediction
+        # -- optimize inside loop if necessary and if we gained prediction
         #   value:
-        if optimize==2:
-            params_,errors_,gain = fit.optimize(times,signal,params,model)
-            if gain>0:
+        if optimize == 2:
+            params_, errors_, gain = fit.optimize(times, signal, params, model)
+            if gain > 0:
                 params = params_
-                logger.info('Accepted optimization (gained %g%%)'%gain)
-
-        #-- improve precision
-        freq_diff = abs(frequency-prev_freq)
+                logger.info('Accepted optimization (gained %g%%)' % gain)
+        
+        # -- improve precision
+        freq_diff = abs(frequency - prev_freq)
         prev_freq = frequency
-        freq_region = fn-f0
-        f0 = max(f_min,frequency-freq_region*scale_region/2.)
-        fn = min(f_max,frequency+freq_region*scale_region/2.)
+        freq_region = fn - f0
+        f0 = max(f_min, frequency - freq_region * scale_region / 2.)
+        fn = min(f_max, frequency + freq_region * scale_region / 2.)
         df *= scale_df
         method_kwargs['f0'] = f0
         method_kwargs['fn'] = fn
         method_kwargs['df'] = df
-        #-- possibilities to escape iterative zoom in
-        #print '---> {counter}/{max_loops}: freq={frequency} ({f0}-->{fn}/{df}), e_f={e_f}, freq_diff={freq_diff}'.format(**locals()),max(ampls)
-        if scale_region==0 or scale_df==0:
+        # -- possibilities to escape iterative zoom in
+        # print '---> {counter}/{max_loops}: freq={frequency} ({f0}-->{fn}/{df}), e_f={e_f}, freq_diff={freq_diff}'.format(**locals()),max(ampls)
+        if scale_region == 0 or scale_df == 0:
             break
         if counter >= max_loops:
-            logger.error("Frequency precision not reached in %d steps, breaking loop"%(max_loops))
+            logger.error("Frequency precision not reached in %d steps, breaking loop" % (max_loops))
             break
-        if (fn-f0)/df<5:
-            logger.error("Frequency precision not reached with stepsize %e , breaking loop"%(df/scale_df))
+        if (fn - f0) / df < 5:
+            logger.error("Frequency precision not reached with stepsize %e , breaking loop" % (df / scale_df))
             break
         counter += 1
-    #-- optimize parameters outside of loop if necessary:
-    if optimize==1:
-        params_,errors_,gain = fit.optimize(times,signal,params,model)
-        if gain>0:
+    # -- optimize parameters outside of loop if necessary:
+    if optimize == 1:
+        params_, errors_, gain = fit.optimize(times, signal, params, model)
+        if gain > 0:
             params = params_
-            logger.info('Accepted optimization (gained %g%%)'%gain)
-    #-- add the errors to the parameter array if possible
+            logger.info('Accepted optimization (gained %g%%)' % gain)
+    # -- add the errors to the parameter array if possible
     if errors is not None:
-        params = numpy_ext.recarr_join(params,errors)
+        params = numpy_ext.recarr_join(params, errors)
     # logger.info("%s model parameters via %s periodogram:\n"%(model,method)+pl.mlab.rec2txt(params,precision=8))
     # params.tofile('log_params', sep=' ', format='%s')
     # logger.info("%s model parameters via %s periodogram:\n"%(model, method) + np.fromfile('log_params'))
-    logger.info("%s model parameters via %s periodogram:\n"%(model,method) + str(params))
-    #-- when full output is required, return parameters, periodogram and fitting
+    logger.info("%s model parameters via %s periodogram:\n" % (model, method) + str(params))
+    # -- when full output is required, return parameters, periodogram and fitting
     #   function
     if full_output:
-        mymodel = getattr(evaluate,model)(times,params)
-        return params,(freqs_,ampls_),mymodel
+        mymodel = getattr(evaluate, model)(times, params)
+        return params, (freqs_, ampls_), mymodel
     else:
         return params
 
 
-
-def iterative_prewhitening(times,signal,maxiter=1000,optimize=0,method='scargle',
-    model='sine',full_output=False,stopcrit=None,correlation_correction=True,
-    prewhiteningorder_snr=False,prewhiteningorder_snr_window=1.,**kwargs):
+def iterative_prewhitening(times, signal, maxiter=1000, optimize=0, method='scargle',
+                           model='sine', full_output=False, stopcrit=None, correlation_correction=True,
+                           prewhiteningorder_snr=False, prewhiteningorder_snr_window=1., **kwargs):
     """
     Fit one or more functions to a timeseries via iterative prewhitening.
 
@@ -367,7 +370,9 @@ def iterative_prewhitening(times,signal,maxiter=1000,optimize=0,method='scargle'
     the noise spectrum is calculated using a convolution with a
     C{prewhiteningorder_snr_window} wide box. Usage of this is strongly encouraged,
     especially combined with L{stopcrit_scargle_snr} as C{stopcrit}.
-
+    
+    Note: uses the lmfit package in the background
+    
     @return: parameters, model(, model function)
     @rtype: rec array(, ndarray)
     """
@@ -375,60 +380,60 @@ def iterative_prewhitening(times,signal,maxiter=1000,optimize=0,method='scargle'
     frequencies = []
     stop_criteria = []
     while maxiter:
-        #-- compute the next frequency from the residuals
-        params,pergram,this_fit = find_frequency(times,residuals,method=method,
-                full_output=True,correlation_correction=correlation_correction,
-                prewhiteningorder_snr=prewhiteningorder_snr,
-                prewhiteningorder_snr_window=prewhiteningorder_snr_window,**kwargs)
-
-        #-- do the fit including all frequencies
+        # -- compute the next frequency from the residuals
+        params, pergram, this_fit = find_frequency(times, residuals, method=method,
+                                                   full_output=True, correlation_correction=correlation_correction,
+                                                   prewhiteningorder_snr=prewhiteningorder_snr,
+                                                   prewhiteningorder_snr_window=prewhiteningorder_snr_window, **kwargs)
+        
+        # -- do the fit including all frequencies
         frequencies.append(params['freq'][-1])
-        allparams = getattr(fit,model)(times,signal,frequencies)
-
-        #-- if there's a need to optimize, optimize the last n parameters
-        if optimize>0:
+        allparams = getattr(fit, model)(times, signal, frequencies)
+        
+        # -- if there's a need to optimize, optimize the last n parameters
+        if optimize > 0:
             residuals_for_optimization = residuals
-            if optimize<=len(params):
-                model_fixed_params = getattr(evaluate,model)(times,allparams[:-optimize])
+            if optimize <= len(params):
+                model_fixed_params = getattr(evaluate, model)(times, allparams[:-optimize])
                 residuals_for_optimization -= model_fixed_params
-            uparams,e_uparams, gain = fit.optimize(times,residuals_for_optimization,allparams[-optimize:],model)
-            #-- only accept the optimization if we gained prediction power
-            if gain>0:
+            uparams, e_uparams, gain = fit.optimize(times, residuals_for_optimization, allparams[-optimize:], model)
+            # -- only accept the optimization if we gained prediction power
+            if gain > 0:
                 allparams[-optimize:] = uparams
-                logger.info('Accepted optimization (gained %g%%)'%gain)
-
-        #-- compute the residuals to use in the next prewhitening step
-        modelfunc = getattr(evaluate,model)(times,allparams)
+                logger.info('Accepted optimization (gained %g%%)' % gain)
+        
+        # -- compute the residuals to use in the next prewhitening step
+        modelfunc = getattr(evaluate, model)(times, allparams)
         residuals = signal - modelfunc
-
-        #-- exhaust the counter
+        
+        # -- exhaust the counter
         maxiter -= 1
-
-        #-- check stop criterion
+        
+        # -- check stop criterion
         if stopcrit is not None:
             func = stopcrit[0]
             args = stopcrit[1:]
-            condition,value = func(times,signal,modelfunc,allparams,pergram,*args)
-            logger.info('Stop criterion (%s): %.3g'%(func.__name__,value))
+            condition, value = func(times, signal, modelfunc, allparams, pergram, *args)
+            logger.info('Stop criterion (%s): %.3g' % (func.__name__, value))
             stop_criteria.append(value)
             if condition:
                 logger.info('Stop criterion reached')
                 break
-
-    #-- calculate the errors
-    e_allparams = getattr(fit,'e_'+model)(times,signal,allparams,correlation_correction=correlation_correction)
-
-    allparams = numpy_ext.recarr_join(allparams,e_allparams)
+    
+    # -- calculate the errors
+    e_allparams = getattr(fit, 'e_' + model)(times, signal, allparams, correlation_correction=correlation_correction)
+    
+    allparams = numpy_ext.recarr_join(allparams, e_allparams)
     if stopcrit is not None:
-        allparams = numpy_ext.recarr_join(allparams,np.rec.fromarrays([stop_criteria],names=['stopcrit']))
-
+        allparams = numpy_ext.recarr_join(allparams, np.rec.fromarrays([stop_criteria], names=['stopcrit']))
+    
     if full_output:
-        return allparams,modelfunc
+        return allparams, modelfunc
     else:
         return allparams
 
 
-def single_prewhitening(times, signal, freq, optimize=0, model='sine', full_output=False,
+def single_prewhitening(times, signal, residuals, freq, optimize=0, model='sine', full_output=False,
                         correlation_correction=True):
     """
     Fit a functions to a timeseries via a single iteration of prewhitening.
@@ -443,7 +448,7 @@ def single_prewhitening(times, signal, freq, optimize=0, model='sine', full_outp
     """
     # do the fit including all frequencies
     all_params = getattr(fit, model)(times, signal, freq)
-
+    
     # if there's a need to optimize, optimize the last n parameters
     if optimize > 0:
         #  todo: ask about this, why the previous residuals??
@@ -455,22 +460,22 @@ def single_prewhitening(times, signal, freq, optimize=0, model='sine', full_outp
         # only accept the optimization if we gained prediction power
         if gain > 0:
             all_params[-optimize:] = uparams
-            logger.info('Accepted optimization (gained %g%%)'%gain)
-
+            logger.info('Accepted optimization (gained %g%%)' % gain)
+    
     # compute the model and the errors
     model_func = getattr(evaluate, model)(times, all_params)
-    e_allparams = getattr(fit, 'e_'+model)(times, signal, all_params, correlation_correction=correlation_correction)
-
+    e_allparams = getattr(fit, 'e_' + model)(times, signal, all_params, correlation_correction=correlation_correction)
+    
     all_params = numpy_ext.recarr_join(all_params, e_allparams)
-
+    
     if full_output:
         return all_params, model_func
     else:
         return all_params
 
 
-def spectrum_2D(x,y,matrix,weights_2d=None,show_progress=False,
-                subs_av=True,full_output=False,**kwargs):
+def spectrum_2D(x, y, matrix, weights_2d=None, show_progress=False,
+                subs_av=True, full_output=False, **kwargs):
     """
     Compute a 2D periodogram.
 
@@ -542,49 +547,50 @@ def spectrum_2D(x,y,matrix,weights_2d=None,show_progress=False,
     @return: dict with keys C{avprof} (2D array), C{pars} (rec array), C{model} (1D array), C{pergram} (freqs,2Darray)
     @rtype: dict
     """
-    #-- compute average profile
+    # -- compute average profile
     if subs_av:
-        matrix_av = np.outer(np.ones(len(matrix)),matrix.mean(axis=0))
+        matrix_av = np.outer(np.ones(len(matrix)), matrix.mean(axis=0))
         matrix = matrix - matrix_av
     else:
         matrix_av = 0.
-
-    #-- prepare output of sine-parameters
+    
+    # -- prepare output of sine-parameters
     params = []
     freq_spectrum = []
     mymodel = []
-    #-- do frequency analysis
+    # -- do frequency analysis
     for iwave in range(len(matrix[0])):
-        signal = matrix[:,iwave]
+        signal = matrix[:, iwave]
         if weights_2d is not None:
-            weights = weights_2d[:,iwave]
+            weights = weights_2d[:, iwave]
             kwargs['weights'] = weights
-
-        #-- make sure output is always a tuple, in case full output was asked
+        
+        # -- make sure output is always a tuple, in case full output was asked
         #   we don't want iterative zoom in so set scale_df=0
-        out = find_frequency(x,signal,full_output=full_output,scale_df=0,**kwargs)
-
-        #-- add the parameters of this wavelength bin to the list
+        out = find_frequency(x, signal, full_output=full_output, scale_df=0, **kwargs)
+        
+        # -- add the parameters of this wavelength bin to the list
         if full_output:
             params.append(out[0])
             freq_spectrum.append(out[1][1])
             mymodel.append(out[2])
         else:
             params.append(out)
-
-    #-- prepare output
+    
+    # -- prepare output
     output = {}
-    output['avprof']    = matrix_av
-    output['pars']      = np.hstack(params)
+    output['avprof'] = matrix_av
+    output['pars'] = np.hstack(params)
     if full_output:
-        output['pergram']   = out[1][0],np.vstack(freq_spectrum).T
-        output['model']   = np.vstack(mymodel).T
-
+        output['pergram'] = out[1][0], np.vstack(freq_spectrum).T
+        output['model'] = np.vstack(mymodel).T
+    
     return output
 
+
 @defaults_pergram
-def time_frequency(times,signal,window_width=None,n_windows=100,
-         window='rectangular',detrend=None,**kwargs):
+def time_frequency(times, signal, window_width=None, n_windows=100,
+                   window='rectangular', detrend=None, **kwargs):
     """
     Short Time (Fourier) Transform.
 
@@ -608,41 +614,42 @@ def time_frequency(times,signal,window_width=None,n_windows=100,
     @rtype: dict
     """
     if window_width is None:
-        window_width = kwargs.get('window_width',times.ptp()/20.)
-    #-- cut light curve until window fits exactly
-    stft_times = np.linspace(times[0]+window_width/2.,times[-1]-window_width/2.,n_windows)
-
-    #-- get f0,fn and df to fix in all computations. If they are not given, they
+        window_width = kwargs.get('window_width', times.ptp() / 20.)
+    # -- cut light curve until window fits exactly
+    stft_times = np.linspace(times[0] + window_width / 2., times[-1] - window_width / 2., n_windows)
+    
+    # -- get f0,fn and df to fix in all computations. If they are not given, they
     #   are set to default values by the decorator
     f0 = kwargs.pop('f0')
     fn = kwargs.pop('fn')
     df = kwargs.pop('df')
-    nyq_stat = kwargs.pop('nyq_stat',fn)
-
-    #-- prepare arrays for parameters, points and spectrum
+    nyq_stat = kwargs.pop('nyq_stat', fn)
+    
+    # -- prepare arrays for parameters, points and spectrum
     pars = []
     pnts = np.zeros(n_windows)
     spec = None
-    #-- compute the periodogram for each slice
-    for i,t in enumerate(stft_times):
-        region = (abs(times-t) <= (window_width/2.))
+    # -- compute the periodogram for each slice
+    for i, t in enumerate(stft_times):
+        region = (abs(times - t) <= (window_width / 2.))
         times_ = times[region]
         signal_ = signal[region]
         if detrend:
-            times_,signal_ = detrend(times_,signal_)
+            times_, signal_ = detrend(times_, signal_)
         pnts[i] = len(times_)
-        if len(times_)>1:
-            output = find_frequency(times_,signal_,full_output=True,f0=f0,fn=fn,df=df,nyq_stat=nyq_stat,scale_df=0,**kwargs)
+        if len(times_) > 1:
+            output = find_frequency(times_, signal_, full_output=True, f0=f0, fn=fn, df=df, nyq_stat=nyq_stat,
+                                    scale_df=0, **kwargs)
             if spec is None:
-                spec = np.ones((n_windows,len(output[1][1])))
+                spec = np.ones((n_windows, len(output[1][1])))
             pars.append(output[0])
-            spec[i,:len(output[1][1])] = output[1][1]
+            spec[i, :len(output[1][1])] = output[1][1]
         else:
-            nanpars = np.rec.array(np.nan*np.ones(len(pars[-1].dtype.names)),dtype=pars[-1].dtype)
+            nanpars = np.rec.array(np.nan * np.ones(len(pars[-1].dtype.names)), dtype=pars[-1].dtype)
             pars.append(nanpars)
-            #try:
+            # try:
             #    pars.append(np.nan*pars[-1])
-            #except:
+            # except:
             #    print pars
             #    print pars[-1]
             #    print pars[-1].dtype
@@ -651,40 +658,44 @@ def time_frequency(times,signal,window_width=None,n_windows=100,
             #    raise
             spec[i] = np.nan
     out = {}
-    out['times']     = stft_times
-    out['pars']      = np.hstack(pars)
-    out['pergram']   = (output[1][0],spec)
+    out['times'] = stft_times
+    out['pars'] = np.hstack(pars)
+    out['pergram'] = (output[1][0], spec)
     return out
 
-#{ Convenience stop-criteria
 
-def stopcrit_scargle_prob(times,signal,modelfunc,allparams,pergram,crit_value):
+# { Convenience stop-criteria
+
+def stopcrit_scargle_prob(times, signal, modelfunc, allparams, pergram, crit_value):
     """
     Stop criterium based on probability.
     """
-    value = pergrams.scargle_probability(pergram[1].max(),times,pergram[0])
+    value = pergrams.scargle_probability(pergram[1].max(), times, pergram[0])
     print(value)
-    return value>crit_value,value
+    return value > crit_value, value
 
-def stopcrit_scargle_snr(times,signal,modelfunc,allparams,pergram,crit_value,width=6.):
+
+def stopcrit_scargle_snr(times, signal, modelfunc, allparams, pergram, crit_value, width=6.):
     """
     Stop criterium based on signal-to-noise ratio.
     """
-    width = width/2.
+    width = width / 2.
     argmax = np.argmax(pergram[1])
     ampls = pergram[1]
-    start = max(0,pergram[0][argmax]-width)
-    stop = min(pergram[0][argmax]+width,pergram[0][-1])
-    if start==0:
-        stop += width-pergram[0][argmax]
-    if stop==pergram[0][-1]:
-        start = pergram[0][-1]-pergram[0][argmax]+width
-    ampls = ampls[(start<=pergram[0]) & (pergram[0]<=stop)]
-    value = pergram[1][argmax]/ampls.mean()
-    return value<crit_value,value
-#}
+    start = max(0, pergram[0][argmax] - width)
+    stop = min(pergram[0][argmax] + width, pergram[0][-1])
+    if start == 0:
+        stop += width - pergram[0][argmax]
+    if stop == pergram[0][-1]:
+        start = pergram[0][-1] - pergram[0][argmax] + width
+    ampls = ampls[(start <= pergram[0]) & (pergram[0] <= stop)]
+    value = pergram[1][argmax] / ampls.mean()
+    return value < crit_value, value
 
-def autocorrelation(frequencies,power,max_step=1.5,interval=(),threshold=None,method=1):
+
+# }
+
+def autocorrelation(frequencies, power, max_step=1.5, interval=(), threshold=None, method=1):
     """
     Compute the autocorrelation.
 
@@ -726,104 +737,104 @@ def autocorrelation(frequencies,power,max_step=1.5,interval=(),threshold=None,me
     @return: domain of autocorrelation and autocorrelation
     @rtype: (ndarray,ndarray)
     """
-    #-- cut out the interesting part of the spectrum
+    # -- cut out the interesting part of the spectrum
     if interval is not ():
-        cut_out = frequencies[(interval[0]<=frequencies) & (frequencies<=interval[1])]
+        cut_out = frequencies[(interval[0] <= frequencies) & (frequencies <= interval[1])]
         start_freq = cut_out[0]
-        stop_freq  = cut_out[-1]
-        start = np.argmin(abs(frequencies-interval[0]))
-        stop = np.argmin(abs(frequencies-interval[1]))
+        stop_freq = cut_out[-1]
+        start = np.argmin(abs(frequencies - interval[0]))
+        stop = np.argmin(abs(frequencies - interval[1]))
     else:
-        start =  1
-        stop  = len(frequencies)-1
-
-    #-- compute the frequency step
-    Dfreq = (frequencies[start+1] - frequencies[start+0])
-    max_step = int(max_step/Dfreq)
+        start = 1
+        stop = len(frequencies) - 1
+    
+    # -- compute the frequency step
+    Dfreq = (frequencies[start + 1] - frequencies[start + 0])
+    max_step = int(max_step / Dfreq)
     autocorr = []
     variance = []
     mean = np.average(power)
-
-    #-- cut of high peaks at a signal to noise level of 6
+    
+    # -- cut of high peaks at a signal to noise level of 6
     #   cut of low values at a signal to noise level of 1
     if threshold is not None:
-        power[power>=(threshold*mean)] = threshold*mean
-        #power = where(less(power, mean), mean, power)
-
-    #-- normalize power as to arrive at the AUTO-correlation function.
-    mean  = np.average(power)
-    power = power-mean
-
-    #-- compute autocorrelation. If nessecary, take border effects into
+        power[power >= (threshold * mean)] = threshold * mean
+        # power = where(less(power, mean), mean, power)
+    
+    # -- normalize power as to arrive at the AUTO-correlation function.
+    mean = np.average(power)
+    power = power - mean
+    
+    # -- compute autocorrelation. If nessecary, take border effects into
     #   account.
-    for i in range(2,max_step):
-        end_s = min(len(power), stop+i)
-        end_o = start + end_s - (start+i)
-        original = power[start  :end_o]
-        shifted  = power[start+i:end_s]
+    for i in range(2, max_step):
+        end_s = min(len(power), stop + i)
+        end_o = start + end_s - (start + i)
+        original = power[start:end_o]
+        shifted = power[start + i:end_s]
         if len(original) < 10:
             logger.error("AUTOCORR: too few points left in interval, breaking up.")
             break
-        if method==1:
-            autocorr.append(np.average(original*shifted))
+        if method == 1:
+            autocorr.append(np.average(original * shifted))
         else:
-            autocorr.append(np.correlate(original,shifted))
-        variance.append(np.average(original*original))
-
-    domain = np.arange(2,max_step) * Dfreq
+            autocorr.append(np.correlate(original, shifted))
+        variance.append(np.average(original * original))
+    
+    domain = np.arange(2, max_step) * Dfreq
     domain = domain[0:len(autocorr)]
-
-    #-- normalize
-    autocorr = np.array(autocorr)/np.array(variance)
-    logger.info("Computed autocorrelation in interval %s with maxstep %s"%(interval,max_step))
+    
+    # -- normalize
+    autocorr = np.array(autocorr) / np.array(variance)
+    logger.info("Computed autocorrelation in interval %s with maxstep %s" % (interval, max_step))
     return domain, autocorr
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     import doctest
     import pylab as pl
     import sys
     from ivs.aux import argkwargparser
     from ivs.inout import ascii
-
-    #-- if no arguments are given, we just do a test run
+    
+    # -- if no arguments are given, we just do a test run
     if not sys.argv[1:]:
         doctest.testmod()
         pl.show()
         sys.exit()
-
-    #-- if arguments are given, we assume the user wants to run one of the
+    
+    # -- if arguments are given, we assume the user wants to run one of the
     #   functions with arguments given in the command line
     # EXAMPLES:
     # $:> python freqanalyse.py find_frequency infile=test.dat full_output=True
     # $:> python freqanalyse.py time_frequency infile=test.dat full_output=True
     else:
-        method,args,kwargs = argkwargparser.parse()
-        print("Running method %s with arguments %s and keyword arguments %s"%(method,args,kwargs))
+        method, args, kwargs = argkwargparser.parse()
+        print("Running method %s with arguments %s and keyword arguments %s" % (method, args, kwargs))
         if '--help' in args or 'help' in args or 'help' in kwargs:
             sys.exit()
-        full_output = kwargs.get('full_output',False)
-        times,signal = ascii.read2array(kwargs.pop('infile')).T[:2]
-        out = globals()[method](times,signal, **kwargs)
-
-        #-- when find_frequency is called
-        if method=='find_frequency' and full_output:
-            print(pl.mlab.rec2txt(out[0],precision=8))
+        full_output = kwargs.get('full_output', False)
+        times, signal = ascii.read2array(kwargs.pop('infile')).T[:2]
+        out = globals()[method](times, signal, **kwargs)
+        
+        # -- when find_frequency is called
+        if method == 'find_frequency' and full_output:
+            print(pl.mlab.rec2txt(out[0], precision=8))
             pl.figure()
             pl.subplot(211)
-            pl.plot(out[1][0],out[1][1],'k-')
+            pl.plot(out[1][0], out[1][1], 'k-')
             pl.subplot(212)
-            pl.plot(times,signal,'ko',ms=2)
-            pl.plot(times,out[2],'r-',lw=2)
+            pl.plot(times, signal, 'ko', ms=2)
+            pl.plot(times, out[2], 'r-', lw=2)
             pl.show()
-        elif method=='find_frequency':
+        elif method == 'find_frequency':
             print(pl.mlab.rec2txt(out))
-
-        #-- when time_frequency is called
-        elif method=='time_frequency':
-            print(pl.mlab.rec2txt(out['pars'],precision=8))
+        
+        # -- when time_frequency is called
+        elif method == 'time_frequency':
+            print(pl.mlab.rec2txt(out['pars'], precision=8))
             pl.figure()
-            pl.imshow(out['pergram'][1].T[::-1],aspect='auto',extent=[out['times'][0],out['times'][-1],out['pergram'][0][0],out['pergram'][0][-1]])
-
-
+            pl.imshow(out['pergram'][1].T[::-1], aspect='auto',
+                      extent=[out['times'][0], out['times'][-1], out['pergram'][0][0], out['pergram'][0][-1]])
+        
         pl.show()
-
