@@ -433,47 +433,6 @@ def iterative_prewhitening(times, signal, maxiter=1000, optimize=0, method='scar
         return allparams
 
 
-def single_prewhitening(times, signal, residuals, freq, optimize=0, model='sine', full_output=False,
-                        correlation_correction=True):
-    """
-    Fit a functions to a timeseries via a single iteration of prewhitening.
-    Use this function in combination with C{find_frequency} to do step-by-step
-    prewhitening.
-
-    This function will fit previously found frequencies C{freq} to the original signal
-    and optimize the found parameters if needed.
-
-    @return: parameters(, model)
-    @rtype: rec array(, ndarray)
-    """
-    # do the fit including all frequencies
-    all_params = getattr(fit, model)(times, signal, freq)
-    
-    # if there's a need to optimize, optimize the last n parameters
-    if optimize > 0:
-        #  todo: ask about this, why the previous residuals??
-        residuals_for_optimization = residuals  # signal - getattr(evaluate, model)(times, all_params)
-        if optimize <= len(freq):
-            model_fixed_params = getattr(evaluate, model)(times, all_params[:-optimize])
-            residuals_for_optimization -= model_fixed_params
-        uparams, e_uparams, gain = fit.optimize(times, residuals_for_optimization, all_params[-optimize:], model)
-        # only accept the optimization if we gained prediction power
-        if gain > 0:
-            all_params[-optimize:] = uparams
-            logger.info('Accepted optimization (gained %g%%)' % gain)
-    
-    # compute the model and the errors
-    model_func = getattr(evaluate, model)(times, all_params)
-    e_allparams = getattr(fit, 'e_' + model)(times, signal, all_params, correlation_correction=correlation_correction)
-    
-    all_params = numpy_ext.recarr_join(all_params, e_allparams)
-    
-    if full_output:
-        return all_params, model_func
-    else:
-        return all_params
-
-
 def spectrum_2D(x, y, matrix, weights_2d=None, show_progress=False,
                 subs_av=True, full_output=False, **kwargs):
     """
